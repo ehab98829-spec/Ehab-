@@ -10,50 +10,38 @@ CORS(app)
 MASTER_URL = "http://bossposs.xyz:80/get.php?username=98:06:3c:75:c0:72&password=443367897666trytfg&type=m3u_plus&output=ts"
 EPG_URL    = "http://bossposs.xyz:80/xmltv.php?username=98:06:3c:75:c0:72&password=443367897666trytfg"
 STREAM_ORIGIN = "http://bossposs.xyz:8080"
-IPTV_HEADERS = {
-    'User-Agent': 'IPTVSmarters/1.0.3 (iPad; iPhone; iOS 13.5.1; Scale/2.00)',
+
+# هيدرز قوية لفك حظر 469
+REAL_HEADERS = {
+    'User-Agent': 'IPTVSmartersPlayer/1.6.2 (iPad; iOS 15.1; Scale/2.00)',
+    'Accept': '*/*',
+    'Connection': 'keep-alive'
 }
 
 @app.route('/')
 def index():
-    return "Ihab IPTV Server is Active on Render!"
-
-def make_playlist(host):
-    r = requests.get(MASTER_URL, timeout=20)
-    r.raise_for_status()
-    # تحويل الروابط لتمر عبر السيرفر الجديد
-    return r.text.replace(STREAM_ORIGIN, f'https://{host}/api/proxy')
+    return "Server is Live - Ehab IPTV"
 
 @app.route('/playlist.m3u')
-@app.route('/api/playlist.m3u')
 def playlist():
     try:
-        # Render يستخدم X-Forwarded-Host للروابط الخارجية
         host = request.headers.get('X-Forwarded-Host', request.host)
-        content = make_playlist(host)
-        return Response(content, status=200, content_type='application/x-mpegurl')
+        # نرسل الهيدرز الحقيقية للسيرفر الأصلي
+        r = requests.get(MASTER_URL, headers=REAL_HEADERS, timeout=20)
+        r.raise_for_status()
+        content = r.text.replace(STREAM_ORIGIN, f'https://{host}/api/proxy')
+        return Response(content, content_type='application/x-mpegurl')
     except Exception as e:
         return f"Error: {e}", 500
 
-@app.route('/epg.xml')
-@app.route('/api/epg')
-def epg():
-    try:
-        upstream = requests.get(EPG_URL, stream=True, timeout=20)
-        def generate():
-            for chunk in upstream.iter_content(chunk_size=1024 * 64):
-                yield chunk
-        return Response(stream_with_context(generate()), content_type='application/xml')
-    except Exception as e:
-        return f"EPG Error: {e}", 500
-
 @app.route('/api/proxy/<path:url_path>')
 def proxy(url_path):
-    qs = request.query_string.decode()
     target_url = f"{STREAM_ORIGIN}/{url_path}"
-    if qs: target_url += f"?{qs}"
+    if request.query_string:
+        target_url += f"?{request.query_string.decode()}"
     try:
-        upstream = requests.get(target_url, headers=IPTV_HEADERS, stream=True, timeout=15)
+        # التمويه حتى عند تشغيل القناة
+        upstream = requests.get(target_url, headers=REAL_HEADERS, stream=True, timeout=15)
         def generate():
             for chunk in upstream.iter_content(chunk_size=1024 * 64):
                 yield chunk
